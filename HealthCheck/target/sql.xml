@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+    PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+ 
+<mapper namespace="Test">
+     
+
+
+	<update id="updDomainSsl"  parameterType="java.util.HashMap">
+		update HC_DOMAIN 
+		set 
+			SSL_EXPIRE_DT = #{SSL_EXPIRE_DT}
+			,SSL_LAST_UPD_DT = to_char(SYSDATE,'YYYYMMDDHH24MISS')
+		where DOMAIN_SEQ = #{DOMAIN_SEQ}
+	</update>
+
+
+    <select id="getDomainChkList" resultType="hashmap">
+	<![CDATA[
+        SELECT
+            *
+        FROM
+            HC_DOMAIN  
+		WHERE CHK_S_TM <= to_char(SYSDATE,'HH24MI')
+			AND	 CHK_E_TM >= to_char(SYSDATE,'HH24MI')
+		ORDER BY SCAN_ORD ASC, DOMAIN_SEQ ASC
+	]]> 
+    </select>
+     
+
+     
+    <select id="getDomainList" resultType="hashmap">
+        SELECT
+            *
+        FROM
+            HC_DOMAIN     
+		WHERE 1=1
+		<if test="DOMAIN_SEQ != null">
+			AND DOMAIN_SEQ like #{DOMAIN_SEQ}
+		</if>
+    </select>
+     
+    <select id="getUrlList" resultType="hashmap">
+        SELECT
+            *
+        FROM
+            HC_URL
+		WHERE DOMAIN_SEQ = #{DOMAIN_SEQ}
+    </select>
+
+    <select id="getUrlUse" resultType="hashmap">
+        SELECT
+            *
+        FROM
+            HC_URL
+		WHERE DOMAIN_SEQ = #{DOMAIN_SEQ} AND URL_SEQ = #{URL_SEQ}
+
+    </select>
+	
+    <select id="getUrlUseList" resultType="hashmap">
+        SELECT
+            *
+        FROM
+            HC_URL
+		WHERE DOMAIN_SEQ = #{DOMAIN_SEQ} and USE_YN = nvl(#{USE_YN,jdbcType=VARCHAR},'Y')
+    </select>
+     
+
+	<insert id="insScan"  parameterType="java.util.HashMap">
+		insert into HC_SCAN (
+			SCAN_SEQ, SCAN_DOMAIN_CNT, SCAN_URL_CNT, AVG_RES_TIME, FAIL_CNT
+			, SUCCESS_CNT, FULL_SCAN_TIME, ADD_DT
+		) values (
+			SEQ_HC_SCAN.nextval, 0, 0, 0, 0
+			, 0, 0, to_char(SYSDATE,'YYYYMMDDHH24MISS')
+		)
+
+		<selectKey keyProperty="LAST_SCAN_SEQ" resultType="Integer" order="AFTER">
+			SELECT SEQ_HC_SCAN.currval FROM dual
+		</selectKey>
+	</insert>
+
+	<update id="updScan"  parameterType="java.util.HashMap">
+		update HC_SCAN
+		set 
+			TOT_RES_TIME = (
+					select nvl(sum(D1.RES_TIME),-1) from 
+						HC_RESULT M1
+						join HC_RESULTD D1 on M1.RESULT_SEQ = D1.RESULT_SEQ
+					where M1.SCAN_SEQ = #{LAST_SCAN_SEQ}
+				)
+			,AVG_RES_TIME = (
+					select nvl(avg(D2.RES_TIME),-1) from 
+						HC_RESULT M2
+						join HC_RESULTD D2 on M2.RESULT_SEQ = D2.RESULT_SEQ
+					where M2.SCAN_SEQ = #{LAST_SCAN_SEQ}
+				)
+			, SCAN_DOMAIN_CNT = ( select count(*) from HC_RESULT where SCAN_SEQ = #{LAST_SCAN_SEQ} )
+			, SCAN_URL_CNT = (
+					select nvl(count(D3.RES_TIME),0) from 
+						HC_RESULT M3
+						join HC_RESULTD D3 on M3.RESULT_SEQ = D3.RESULT_SEQ
+					where M3.SCAN_SEQ = #{LAST_SCAN_SEQ}
+				)
+			, FAIL_CNT = (
+					select nvl(count(D4.RES_TIME),0) from 
+						HC_RESULT M4
+						join HC_RESULTD D4 on M4.RESULT_SEQ = D4.RESULT_SEQ
+					where M4.SCAN_SEQ = #{LAST_SCAN_SEQ} and D4.SUCCESS_YN = 'N'
+				)
+			, SUCCESS_CNT = (
+					select nvl(count(D5.RES_TIME),0) from 
+						HC_RESULT M5
+						join HC_RESULTD D5 on M5.RESULT_SEQ = D5.RESULT_SEQ
+					where M5.SCAN_SEQ = #{LAST_SCAN_SEQ} and D5.SUCCESS_YN = 'Y'
+				)
+			, FULL_SCAN_TIME = #{FULL_SCAN_TIME}
+			, MOD_DT = to_char(SYSDATE,'YYYYMMDDHH24MISS')
+		where SCAN_SEQ = #{LAST_SCAN_SEQ}
+	</update>
+
+
+	<insert id="insResult"  parameterType="java.util.HashMap">
+		insert into HC_RESULT (
+			RESULT_SEQ, SCAN_SEQ, DOMAIN_SEQ, SCAN_DT, SCAN_TM
+			, SCAN_CNT, SUCCESS_YN, ADD_DT 
+		) values (
+			SEQ_HC_RESULT.nextval, SEQ_HC_SCAN.currval, #{DOMAIN_SEQ}, to_char(SYSDATE,'YYYYMMDD'),to_char(SYSDATE,'HH24MISS')
+			,(select count(URL_SEQ) from HC_URL where DOMAIN_SEQ = #{DOMAIN_SEQ} and USE_YN='Y'), 'N',to_char(SYSDATE,'YYYYMMDDHH24MISS')
+		)
+
+		<selectKey keyProperty="LAST_RESULT_SEQ" resultType="Integer" order="AFTER">
+			SELECT SEQ_HC_RESULT.currval FROM dual
+		</selectKey>
+
+	</insert>
+
+
+	<update id="updResult"  parameterType="java.util.HashMap">
+		update HC_RESULT set
+			SUCCESS_CNT = ( select count(*) from HC_RESULTD where RESULT_SEQ = #{LAST_RESULT_SEQ} and SUCCESS_YN = 'Y' )
+			,FAIL_CNT = ( select count(*) from HC_RESULTD where RESULT_SEQ = #{LAST_RESULT_SEQ} and SUCCESS_YN = 'N' ) 
+			,SUCCESS_YN = ( case when ( select count(*) from HC_RESULTD where RESULT_SEQ = #{LAST_RESULT_SEQ} and SUCCESS_YN = 'N' ) > 0 then 'N' else 'Y' end )
+			,MOD_DT = to_char(SYSDATE,'YYYYMMDDHH24MISS')
+		where RESULT_SEQ = #{LAST_RESULT_SEQ}
+	</update>
+
+	<update id="updResultSsl"  parameterType="java.util.HashMap">
+		update HC_RESULT set
+			SSL_EXPIRE_DT = #{SSL_EXPIRE_DT}
+			, SSL_DUE_DAY = #{SSL_DUE_DAY}
+			, SSL_ERR_CD = #{SSL_ERR_CD}
+			, SSL_ERR_MSG = #{SSL_ERR_MSG} 
+		where RESULT_SEQ = #{LAST_RESULT_SEQ}
+	</update>
+
+	<insert id="insResultD"  parameterType="java.util.HashMap">
+		insert into HC_RESULTD(
+			RESULTD_SEQ, RESULT_SEQ, URL_SEQ, SUCCESS_YN, RES_CD
+			, RES_TIME, RES_SIZE, RES_BODY, RES_HASH, INVALID_CD
+			, ERROR_CD, ERROR_MSG, PUSH_SUCCESS_YN, PUSH_HEADER, PUSH_MESSAGE
+			, PUSH_RECEIVER_ID, PUSH_MESSAGE_BODY, PUSH_ERROR_CD, PUSH_ERROR_MSG, PUSH_ERROR_TRACE
+			, ADD_DT
+		) values (
+			SEQ_HC_RESULTD.nextval,SEQ_HC_RESULT.currval,#{URL_SEQ},#{SUCCESS_YN},#{RES_CD}
+			, #{RES_TIME}, #{RES_SIZE}, #{RES_BODY,jdbcType=CLOB}, #{RES_HASH}, #{INVALID_CD}
+			, #{ERROR_CD}, #{ERROR_MSG,jdbcType=CLOB}, #{PUSH_SUCCESS_YN}, #{PUSH_HEADER}, #{PUSH_MESSAGE}
+			, #{PUSH_RECEIVER_ID}, #{PUSH_MESSAGE_BODY},  #{PUSH_ERROR_CD},  #{PUSH_ERROR_MSG,jdbcType=CLOB},  #{PUSH_ERROR_TRACE,jdbcType=CLOB}
+			, to_char(SYSDATE,'YYYYMMDDHH24MISS')
+		)
+	</insert>
+
+
+	
+    <select id="getResult_TodayCnt" resultType="hashmap">
+        SELECT
+            count(RESULT_SEQ) as CNT
+        FROM
+            HC_RESULT
+		WHERE DOMAIN_SEQ = #{DOMAIN_SEQ} and SCAN_DT = to_char(SYSDATE,'YYYYMMDD')
+    </select>
+     
+
+</mapper>
