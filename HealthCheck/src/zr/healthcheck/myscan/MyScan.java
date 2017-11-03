@@ -820,7 +820,7 @@ public class MyScan{
 
 
 	public static HashMap<String,Object> goAlarmPush(HashMap tMsg){
-		log.info("goBlossomPush()-------------------------------");
+		log.info("goAlarmPush()-------------------------------");
 		log.info("	[tMsg]receiver_id :" + tMsg.get("receiver_id"));
 		log.info("	[tMsg]header :" + tMsg.get("header"));
 		log.info("	[tMsg]message :" + tMsg.get("message"));
@@ -843,9 +843,9 @@ public class MyScan{
 
 		HashMap<String, Object> tUrl;
 		tUrl = new HashMap<String, Object>();
-		tUrl.put("FULL_URL", "http://10.253.12.135/Website/Custom/Mobile/SPNSRequestPushSrv_Multi.asmx/RequestPush");
+		tUrl.put("FULL_URL", "http://push.url");
 		tUrl.put("METHOD", "POST");
-		tUrl.put("QUERY_STRING", "system_code=BC8B8281-0C08-4C24-8842-AFBC52513A78&system_key=10000&receiver_id=" + tMsg.get("receiver_id") + "&header=" + tMsg.get("header") + "&message=" + tMsg.get("message") + "&message_body=" + tMsg.get("message_body") + "&sender_id=p905z1&applink_yn=N");
+		tUrl.put("QUERY_STRING", "1=2&3=4");
 		tUrl.put("TIMEOUT", 3000);
 
 		StringBuffer resBody = new StringBuffer();
@@ -856,7 +856,7 @@ public class MyScan{
 
 		try{
 			log.info("	Starting MyTest");
-			//blossom api v4
+			//alarm api v4
 			
 			url = new URL((String)tUrl.get("FULL_URL"));
 			
